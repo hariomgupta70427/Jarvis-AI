@@ -17,4 +17,3 @@ PyQt5
 webdriver-manager
 cohere
 rich
-dotenv

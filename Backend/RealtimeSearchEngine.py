@@ -8,9 +8,12 @@ from dotenv import dotenv_values  # Importing dotenv_values to read environment 
 env_vars = dotenv_values(".env")
 
 # Retrieve environment variables for the chatbot configuration.
-Username = env_vars.get("Username")
-Assistantname = env_vars.get("Assistantname")
-GroqAPIKey = env_vars.get("GroqAPIKey")
+try:
+    Username = env_vars["Username"]
+    Assistantname = env_vars["Assistantname"]
+    GroqAPIKey = env_vars["GroqAPIKey"]
+except KeyError as e:
+    raise Exception(f"Missing environment variable: {e}")
 
 # Initialize the Groq client with the provided API key.
 client = Groq(api_key=GroqAPIKey)
@@ -21,12 +24,14 @@ System = f"""Hello, I am {Username}, You are a very accurate and advanced AI cha
 *** Just answer the question from the provided data in a professional way. ***"""
 
 # Try to load the chat log from a JSON file, or create an empty one if it doesn’t exist.
+chatlog_path = "Data/ChatLog.json"
 try:
-    with open(r"Data\ChatLog.json", "r") as f:
+    with open(chatlog_path, "r") as f:
         messages = load(f)
-except:
-    with open(r"Data\ChatLog.json", "w") as f:
-        dump([], f)
+except (FileNotFoundError, ValueError):
+    messages = []
+    with open(chatlog_path, "w") as f:
+        dump(messages, f)
 
 # Function to perform a Google search and format the results.
 def GoogleSearch(query):
@@ -41,10 +46,7 @@ def GoogleSearch(query):
 
 # Function to clean up the answer by removing empty lines.
 def AnswerModifier(Answer):
-    lines = Answer.split('\n')
-    non_empty_lines = [line for line in lines if line.strip()]
-    modified_answer = '\n'.join(non_empty_lines)
-    return modified_answer
+    return "\n".join([line for line in Answer.split("\n") if line.strip()])
 
 # Predefined chatbot conversation system message and an initial user message.
 SystemChatBot = [
@@ -60,12 +62,14 @@ def Information():
 
 # Function to handle real-time search and response generation.
 def RealtimeSearchEngine(prompt):
-    global SystemChatBot, messages
-
     # Load the chat log from the JSON file.
-    with open(r"Data\ChatLog.json", "r") as f:
-        messages = load(f)
-    messages.append({"role": "user", "content": f"{prompt}"})
+    try:
+        with open(chatlog_path, "r") as f:
+            messages = load(f)
+    except (FileNotFoundError, ValueError):
+        messages = []
+
+    messages.append({"role": "user", "content": prompt})
 
     # Add Google search results to the system chatbot messages.
     SystemChatBot.append({"role": "system", "content": GoogleSearch(prompt)})
@@ -90,16 +94,17 @@ def RealtimeSearchEngine(prompt):
 
     # Append the answer to the chat log and save it.
     messages.append({"role": "assistant", "content": Answer})
-    with open(r"Data\ChatLog.json", "w") as f:
+    with open(chatlog_path, "w") as f:
         dump(messages, f)
 
     return Answer
 
-# Continuous loop for user input
-while True:
-    user_input = input("Enter your query (type 'exit' to quit): ")
-    if user_input.lower() == "exit":
-        print("Exiting program.")
-        break
-    response = RealtimeSearchEngine(user_input)
-    print("\nAssistant's Response:\n", response)
+# If this file is run directly, start the interactive chatbot loop.
+if __name__ == "__main__":
+    while True:
+        user_input = input("Enter your query (type 'exit' to quit): ")
+        if user_input.lower() == "exit":
+            print("Exiting program.")
+            break
+        response = RealtimeSearchEngine(user_input)
+        print("\nAssistant's Response:\n", response)

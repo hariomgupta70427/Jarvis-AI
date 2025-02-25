@@ -208,6 +208,7 @@ async def TranslateAndExecute(commands: list[str]):
                   funcs.append(fun)
             else:
                   print(f"No Function for: {command}")# Print a message for unhandled commands.
+                  
       results=await asyncio.gather(*funcs)  # Execute the scheduled tasks.
       for result in results:
             if isinstance(result, str):

@@ -1,101 +1,102 @@
-from googlesearch import search
-from groq import Groq  # Importing the Groq library to use its API.
-from json import load, dump  # Importing functions to read and write JSON files.
-import datetime  # Importing the datetime module for real-time date and time information.
-from dotenv import dotenv_values  # Importing dotenv_values to read environment variables from a .env file.
+import asyncio
+from random import randint
+from PIL import Image
+import requests
+import os
+from time import sleep
+from dotenv import get_key
 
-# Load environment variables from the .env file.
-env_vars = dotenv_values(".env")
+# API details for the Hugging Face Stable Diffusion model
+API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+headers = {"Authorization": f"Bearer {get_key('.env', 'HuggingFaceAPIKey')}"}
 
-# Retrieve environment variables for the chatbot configuration.
-Username = env_vars.get("Username")
-Assistantname = env_vars.get("Assistantname")
-GroqAPIKey = env_vars.get("GroqAPIKey")
+# Function to open and display images
+def open_images(prompt):
+    folder_path = "Data"  # Folder where the images are stored
+    prompt = prompt.replace(" ", "_")  # Replace spaces in prompt with underscores
 
-# Initialize the Groq client with the provided API key.
-client = Groq(api_key=GroqAPIKey)
+    # Generate the filenames for the images
+    Files = [f"{prompt}{i}.jpg" for i in range(1, 4)]
 
-# Define the system instructions for the chatbot.
-System = f"""Hello, I am {Username}, You are a very accurate and advanced AI chatbot named {Assistantname} which has real-time up-to-date information from the internet.
-*** Provide Answers In a Professional Way, make sure to add full stops, commas, question marks, and use proper grammar.***
-*** Just answer the question from the provided data in a professional way. ***"""
+    for jpg_file in Files:
+        image_path = os.path.join(folder_path, jpg_file)
 
-# Try to load the chat log from a JSON file, or create an empty one if it doesn’t exist.
-try:
-    with open(r"Data\ChatLog.json", "r") as f:
-        messages = load(f)
-except:
-    with open(r"Data\ChatLog.json", "w") as f:
-        dump([], f)
+        try:
+            img = Image.open(image_path)
+            print(f"Opening image: {image_path}")
+            img.show()
+            sleep(1)  # Pause for 1 second before showing the next image
 
-# Function to perform a Google search and format the results.
-def GoogleSearch(query):
-    results = list(search(query, advanced=True, num_results=5))
-    Answer = f"The search results for '{query}' are:\n[start]\n"
+        except IOError:
+            print(f"Unable to open {image_path}")
 
-    for i in results:
-        Answer += f"Title: {i.title}\nDescription: {i.description}\n\n"
+# Async function to send a query to the Hugging Face API
+async def query(payload):
+    response = await asyncio.to_thread(requests.post, API_URL, headers=headers, json=payload)
+    
+    if response.status_code == 200:
+        return response.content  # Direct binary image data
+    else:
+        print("Error in response:", response.status_code, response.text)
+        return None
 
-    Answer += "[end]"
-    return Answer
+# Async function to generate images and save them
+async def generate_images(prompt: str):
+    tasks = []
 
-# Function to clean up the answer by removing empty lines.
-def AnswerModifier(Answer):
-    lines = Answer.split('\n')
-    non_empty_lines = [line for line in lines if line.strip()]
-    modified_answer = '\n'.join(non_empty_lines)
-    return modified_answer
+    for _ in range(3):
+        payload = {
+            "inputs": f"{prompt}, quality=4K, sharpness=maximum, Ultra High details, high resolution, seed={randint(0, 1000000)}",
+        }
+        task = asyncio.create_task(query(payload))
+        tasks.append(task)
 
-# Predefined chatbot conversation system message and an initial user message.
-SystemChatBot = [
-    {"role": "system", "content": System},
-    {"role": "user", "content": "Hi"},
-    {"role": "assistant", "content": "Hello, how can I help you?"}
-]
-# Function to get real-time information like the current date and time.
-def Information():
-    data = ""
+    image_data_list = await asyncio.gather(*tasks)
 
-    current_date_time = datetime.datetime.now()
-    day = current_date_time.strftime("%A")
-    date = current_date_time.strftime("%d")
-    month = current_date_time.strftime("%B")
-    year = current_date_time.strftime("%Y")
-    hour = current_date_time.strftime("%H")
-    minute = current_date_time.strftime("%M")
-    second = current_date_time.strftime("%S")
+    for i, image_data in enumerate(image_data_list):
+        if image_data:
+            file_path = f"Data/{prompt.replace(' ', '_')}{i + 1}.jpg"
+            with open(file_path, "wb") as f:
+                f.write(image_data)
+            print(f"Image {i+1} saved successfully at {file_path}!")
 
-    data += f"Use This Real-time Information if needed:\n"
-    data += f"Day: {day}\n"
-    data += f"Date: {date}\n"
-    data += f"Month: {month}\n"
-    data += f"Year: {year}\n"
-    data += f"Time: {hour} hours, {minute} minutes, {second} seconds.\n"
+# Wrapper function to generate and open images
+def GenerateImages(prompt: str):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(generate_images(prompt))
+    open_images(prompt)
 
-    return data
+# Main loop to check and process image generation requests
+while True:
+    try:
+        # Ensure file exists
+        file_path = r"Frontend/Files/ImageGeneration.data"
+        if not os.path.exists(file_path):
+            with open(file_path, "w") as f:
+                f.write("False,False")
 
+        # Read the status and prompt from the data file
+        with open(file_path, "r") as f:
+            Data = f.read().strip()
+        
+        if not Data:
+            continue
 
-# Function to handle real-time search and response generation.
-def RealtimeSearchEngine(prompt):
-    global SystemChatBot, messages
+        Prompt, Status = Data.split(",")
 
-    # Load the chat log from the JSON file.
-    with open(r"Data\ChatLog.json", "r") as f:
-        messages = load(f)
-    messages.append({"role": "user", "content": f"{prompt}"})
+        # If the status indicates an image generation request
+        if Status.strip().lower() == "true":
+            print(f"Generating Images for: {Prompt.strip()}...")
+            GenerateImages(prompt=Prompt.strip())
 
-    # Add Google search results to the system chatbot messages.
-    SystemChatBot.append({"role": "system", "content": GoogleSearch(prompt)})
+            # Reset the status to False after image generation
+            with open(file_path, "w") as f:
+                f.write("False,False")
+            break
+        else:
+            sleep(1)  # Wait for 1 second before checking again
 
-    # Generate a response using the Groq client.
-    completion = client.chat.completions.create(
-        model="llama3-70b-8192",
-        messages=SystemChatBot + [{"role": "system", "content": Information()}] + messages,
-        temperature=0.7,
-        max_tokens=2048,
-        top_p=1,
-        stream=True,
-        stop=None
-    )
-
-    Answer = ""
+    except Exception as e:
+        print(f"Error: {e}")
+        sleep(1)  # Avoid CPU overuse
