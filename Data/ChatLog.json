@@ -30,5 +30,13 @@
     {
         "role": "assistant",
         "content": "Tony Stark is a fictional character, also known as Iron Man, a superhero in the Marvel Cinematic Universe."
+    },
+    {
+        "role": "user",
+        "content": "Hello jarvis."
+    },
+    {
+        "role": "assistant",
+        "content": "Hello, sir!"
     }
 ]
