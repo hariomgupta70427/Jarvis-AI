@@ -7,88 +7,49 @@ from dotenv import dotenv_values
 
 import os
 import mtranslate as mt
+import time
+import speech_recognition as sr
+import traceback
+import random
 
 # Load environment variables from the .env file.
-env_vars = dotenv_values(".env")
-# Get the input language setting from the environment variables.
-InputLanguage = env_vars.get('InputLanguage')
-
-# Define the HTML code for the speech recognition interface.
-HtmlCode = '''<!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>Speech Recognition</title>
-</head>
-<body>
-    <button id="start" onclick="startRecognition()">Start Recognition</button>
-    <button id="end" onclick="stopRecognition()">Stop Recognition</button>
-    <p id="output"></p>
-    <script>
-        const output = document.getElementById('output');
-        let recognition;
-
-        function startRecognition() {
-            recognition = new webkitSpeechRecognition() || new SpeechRecognition();
-            recognition.lang = '';
-            recognition.continuous = true;
-
-            recognition.onresult = function(event) {
-                const transcript = event.results[event.results.length - 1][0].transcript;
-                output.textContent += transcript;
-            };
-
-            recognition.onend = function() {
-                recognition.start();
-            };
-            recognition.start();
-        }
-
-        function stopRecognition() {
-            recognition.stop();
-            output.innerHTML = "";
-        }
-    </script>
-</body>
-</html>'''
-
-# Replace the language setting in the HTML code with the input language from the environment variables.
-HtmlCode = str(HtmlCode).replace("recognition.lang = ''", f"recognition.lang = '{InputLanguage}';")
-
-# Write the modified HTML code to a file.
-with open(r"Data\Voice.html", "w") as f:
-    f.write(HtmlCode)
-
-# Get the current working directory.
-current_dir = os.getcwd()
-
-# Generate the file path for the HTML file.
-Link = f"{current_dir}/Data/Voice.html"
-
-# Set Chrome options for the WebDriver.
-chrome_options = Options()
-user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.142.86 Safari/537.36"
-chrome_options.add_argument(f"user-agent={user_agent}")
-chrome_options.add_argument("--use-fake-ui-for-media-stream")
-chrome_options.add_argument("--use-fake-device-for-media-stream")
-chrome_options.add_argument("--headless=new")
-
-# Initialize the Chrome WebDriver using the ChromeDriverManager.
-service = Service(ChromeDriverManager().install())
-driver = webdriver.Chrome(service=service, options=chrome_options)
+try:
+    env_vars = dotenv_values(".env")
+    # Get the input language setting from the environment variables.
+    InputLanguage = env_vars.get('InputLanguage', 'en-US')  # Default to en-US if not found
+except Exception as e:
+    print(f"Error loading .env file: {e}")
+    InputLanguage = 'en-US'  # Default to English if there's an issue with .env
 
 # Define the path for temporary files.
-TempDirPath = rf"{current_dir}/Frontend/Files"
+current_dir = os.getcwd()
+TempDirPath = f"{current_dir}/Frontend/Files"
+os.makedirs(TempDirPath, exist_ok=True)
+
+# Global recognizer and microphone objects
+recognizer = None
+microphone = None
 
 # Function to set the assistant's status by writing it to a file.
 def SetAssistantStatus(Status):
-    with open(rf"{TempDirPath}/Status.data", "w", encoding="utf-8") as file:
-        file.write(Status)
+    try:
+        with open(f"{TempDirPath}/Status.data", "w", encoding="utf-8") as file:
+            file.write(Status)
+    except Exception as e:
+        print(f"Error setting assistant status: {e}")
 
 # Function to modify a query to ensure proper punctuation and formatting.
 def QueryModifier(Query):
+    if not Query:
+        return "I didn't catch that."
+        
     new_query = Query.lower().strip()
     query_words = new_query.split()
-    question_words = ["how", "what", "who", "where", "when", "why", "which", "whose", "whom", "can you", "what’s", "where’s", "how’s"]
+    
+    if not query_words:
+        return "I didn't catch that."
+        
+    question_words = ["how", "what", "who", "where", "when", "why", "which", "whose", "whom", "can you", "what's", "where's", "how's"]
 
     # Check if the query is a question and add a question mark if necessary.
     if any(word + " " in new_query for word in question_words):
@@ -108,42 +69,184 @@ def QueryModifier(Query):
 
 # Function to translate text into English using the mtranslate library.
 def UniversalTranslator(Text):
-    english_translation = mt.translate(Text, "en", "auto")
-    return english_translation.capitalize()
+    try:
+        english_translation = mt.translate(Text, "en", "auto")
+        return english_translation.capitalize()
+    except Exception as e:
+        print(f"Error in translation: {e}")
+        return Text.capitalize()
 
-# Function to perform speech recognition using the WebDriver.
+# Initialize speech recognition components
+def initialize_speech_recognition():
+    global recognizer, microphone
+    
+    try:
+        # Create new instances to avoid potential resource issues
+        recognizer = sr.Recognizer()
+        microphone = sr.Microphone()
+        
+        # List available microphones
+        mic_list = sr.Microphone.list_microphone_names()
+        print("Available microphones:")
+        for i, mic_name in enumerate(mic_list):
+            print(f"{i}: {mic_name}")
+        
+        # Adjust for ambient noise once at initialization
+        with microphone as source:
+            print("Initializing microphone and adjusting for ambient noise...")
+            recognizer.adjust_for_ambient_noise(source, duration=2)
+        
+        # Set parameters for better recognition
+        recognizer.pause_threshold = 1.0
+        recognizer.energy_threshold = 300
+        recognizer.dynamic_energy_threshold = True
+        
+        print("Speech recognition initialized successfully")
+        return True
+    except Exception as e:
+        print(f"Error initializing speech recognition: {e}")
+        traceback.print_exc()
+        return False
+
+# Direct speech recognition using the system microphone
+def native_speech_recognition():
+    global recognizer, microphone
+    
+    # Ensure recognizer and microphone are initialized
+    if recognizer is None or microphone is None:
+        if not initialize_speech_recognition():
+            return None
+    
+    try:
+        with microphone as source:
+            print("Listening... (native microphone)")
+            SetAssistantStatus("Listening...")
+            
+            # Listen for speech with increased timeout
+            print("Ready for speech input")
+            audio = recognizer.listen(source, timeout=7, phrase_time_limit=7)
+            
+            SetAssistantStatus("Processing...")
+            
+            # Try to recognize what was said with multiple language options
+            try:
+                # First try with specified language
+                text = recognizer.recognize_google(audio, language=InputLanguage)
+                print(f"Recognized: {text}")
+            except:
+                # If that fails, try with English
+                try:
+                    text = recognizer.recognize_google(audio, language="en-US")
+                    print(f"Recognized with fallback to English: {text}")
+                except:
+                    # If that also fails, try with auto-detection
+                    text = recognizer.recognize_google(audio)
+                    print(f"Recognized with auto-detection: {text}")
+            
+            # If the input language is not English, translate it
+            if InputLanguage.lower() != "en" and "en" not in InputLanguage.lower():
+                SetAssistantStatus("Translating...")
+                return QueryModifier(UniversalTranslator(text))
+            else:
+                return QueryModifier(text)
+                
+    except sr.WaitTimeoutError:
+        print("Timeout - no speech detected")
+        return None
+    except sr.UnknownValueError:
+        print("Could not understand audio")
+        return None
+    except sr.RequestError as e:
+        print(f"Could not request results from Google Speech Recognition service; {e}")
+        return None
+    except Exception as e:
+        print(f"Error in native speech recognition: {e}")
+        traceback.print_exc()
+        
+        # Try to reinitialize if there was an error
+        print("Attempting to reinitialize speech recognition...")
+        initialize_speech_recognition()
+        return None
+
+# Fallback to text input when speech recognition fails
+def text_input_fallback():
+    try:
+        SetAssistantStatus("Speech recognition failed. Using text input...")
+        print("\n>>> SPEECH RECOGNITION FAILED <<<")
+        print(">>> Please type your command below <<<")
+        text = input("Command: ")
+        if text.strip():
+            return text.strip()
+        return None
+    except Exception as e:
+        print(f"Error in text input: {e}")
+        return None
+
+# Function to perform speech recognition.
 def SpeechRecognition():
-    # Open the HTML file in the browser.
-    driver.get("file:///" + Link)
-
-    # Start speech recognition by clicking the start button.
-    driver.find_element(by=By.ID, value="start").click()
-
-    while True:
+    # Initialize on first call
+    global recognizer, microphone
+    if recognizer is None or microphone is None:
+        initialize_speech_recognition()
+    
+    # Try native speech recognition with multiple attempts
+    max_attempts = 3
+    current_attempt = 0
+    
+    while current_attempt < max_attempts:
         try:
-            # Get the recognized text from the HTML output element.
-            Text = driver.find_element(by=By.ID, value="output").text
-
-            if Text:
-                # Stop recognition by clicking the stop button.
-                driver.find_element(by=By.ID, value="end").click()
-
-                # If the input language is English, return the modified query.
-                if InputLanguage.lower() == "en" or "en" in InputLanguage.lower():
-                    return QueryModifier(Text)
-                else:
-                    # If the input language is not English, translate the text and return it.
-                    SetAssistantStatus("Translating ...")
-                    return QueryModifier(UniversalTranslator(Text))
-
+            print(f"Speech recognition attempt {current_attempt + 1} of {max_attempts}")
+            result = native_speech_recognition()
+            if result:
+                return result
+            current_attempt += 1
+            # Add a short delay between attempts to allow microphone to reset
+            time.sleep(1)
         except Exception as e:
-            pass
+            print(f"Error during speech recognition attempt {current_attempt + 1}: {e}")
+            traceback.print_exc()
+            current_attempt += 1
+            time.sleep(1)  # Short delay between attempts
+    
+    # If speech recognition fails, try text input as a fallback
+    print("Speech recognition failed after multiple attempts")
+    text_result = text_input_fallback()
+    if text_result:
+        return QueryModifier(text_result)
+    
+    # If all attempts fail, return a default message
+    return "I'm having trouble hearing you. Please check your microphone settings."
+
+# Reset speech recognition (call this when issues occur)
+def reset_speech_recognition():
+    global recognizer, microphone
+    
+    # Release resources if possible
+    try:
+        if microphone:
+            del microphone
+        if recognizer:
+            del recognizer
+    except:
+        pass
+    
+    # Set to None to force reinitialization
+    recognizer = None
+    microphone = None
+    
+    # Reinitialize
+    return initialize_speech_recognition()
 
 # Main execution block.
 if __name__ == "__main__":
+    initialize_speech_recognition()
     while True:
         # Continuously perform speech recognition and print the recognized text.
         Text = SpeechRecognition()
         print(Text)
+        
+        # Reset after every 5 iterations to prevent resource issues
+        if random.randint(1, 5) == 1:
+            reset_speech_recognition()
 
 

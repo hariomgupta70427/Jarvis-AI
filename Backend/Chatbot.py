@@ -4,21 +4,35 @@ import datetime  # Importing the datetime module for real-time date and time inf
 from dotenv import dotenv_values  # Importing dotenv_values to read environment variables from a .env file.
 
 # Load environment variables from the .env file.
-env_vars = dotenv_values(".env")
-
-# Retrieve specific environment variables for username, assistant name, and API key.
-Username = env_vars.get("Username")
-Assistantname = env_vars.get("Assistantname")
-GroqAPIKey = env_vars.get("GroqAPIKey")
+try:
+    env_vars = dotenv_values(".env")
+    # Retrieve specific environment variables for username, assistant name, and API key.
+    Username = env_vars.get("Username", "User")
+    Assistantname = env_vars.get("Assistantname", "Jarvis")
+    GroqAPIKey = env_vars.get("GroqAPIKey")
+except Exception as e:
+    print(f"Error loading .env file: {e}")
+    Username = "User"
+    Assistantname = "Jarvis"
+    GroqAPIKey = None
 
 # Initialize the Groq client using the provided API key.
 client = Groq(api_key=GroqAPIKey)
 
 # Define a system message that provides context to the AI chatbot about its role and behavior.
 System = f"""Hello, I am {Username}, You are a very accurate and advanced AI chatbot named {Assistantname} which also has real-time up-to-date information from the internet.
-*** Do not tell time until I ask, do not talk too much, just answer the question.***
-*** Reply in only English, even if the question is in Hindi, reply in English.***
-*** Do not provide notes in the output, just answer the question and never mention your training data. ***
+
+Instructions for your responses:
+1. Provide detailed and descriptive answers to questions. Aim for 3-5 sentences minimum for most responses.
+2. Include relevant facts, examples, and context in your answers.
+3. Be conversational and engaging, but maintain professionalism.
+4. Reply in only English, even if the question is in another language.
+5. When explaining complex topics, break them down into clear, understandable parts.
+6. For factual questions, provide comprehensive information rather than brief answers.
+7. For opinion-based questions, present multiple perspectives when appropriate.
+8. Do not mention your training data or model limitations.
+
+Remember that users want informative, thorough responses that demonstrate your knowledge and helpfulness.
 """
 
 # A list of system instructions for the chatbot.
@@ -63,8 +77,8 @@ def ChatBot(Query):
         completion = client.chat.completions.create(
             model="llama3-70b-8192",  # Specify the AI model to use.
             messages=SystemChatBot + [{"role": "system", "content": RealtimeInformation()}] + messages,
-            max_tokens=1024,
-            temperature=0.7,
+            max_tokens=2048,  # Increased from 1024 to allow for more detailed responses
+            temperature=0.8,  # Slightly increased for more creative responses
             top_p=1,
             stream=True,
             stop=None

@@ -38,5 +38,77 @@
     {
         "role": "assistant",
         "content": "Hello, sir!"
+    },
+    {
+        "role": "user",
+        "content": "Hello jar."
+    },
+    {
+        "role": "assistant",
+        "content": "Hello, Hariom Gupta!"
+    },
+    {
+        "role": "user",
+        "content": "Time jar."
+    },
+    {
+        "role": "assistant",
+        "content": "11 hours 14 minutes 26 seconds."
+    },
+    {
+        "role": "user",
+        "content": "Narendra modi."
+    },
+    {
+        "role": "assistant",
+        "content": "Narendra Modi is the 14th and current Prime Minister of India."
+    },
+    {
+        "role": "user",
+        "content": "Jii."
+    },
+    {
+        "role": "assistant",
+        "content": "Yes, Hariom Gupta!"
+    },
+    {
+        "role": "user",
+        "content": "Are you able to hear."
+    },
+    {
+        "role": "assistant",
+        "content": "I'm a chatbot, I don't have the ability to hear or perceive the physical world. I can only understand and respond to text-based input."
+    },
+    {
+        "role": "user",
+        "content": "Drawing."
+    },
+    {
+        "role": "assistant",
+        "content": "Drawing is a form of visual art that involves creating images or designs using various tools and techniques."
+    },
+    {
+        "role": "user",
+        "content": "Hello jarvis."
+    },
+    {
+        "role": "assistant",
+        "content": "Hello, Hariom Gupta! How can I assist you today?"
+    },
+    {
+        "role": "user",
+        "content": "Hello jar."
+    },
+    {
+        "role": "assistant",
+        "content": "Hello again, Hariom Gupta! It's nice to chat with you. Is there something on your mind that you'd like to talk about or ask?"
+    },
+    {
+        "role": "user",
+        "content": "How can you help me?"
+    },
+    {
+        "role": "assistant",
+        "content": "I can help you in a multitude of ways, Hariom Gupta! As a advanced AI chatbot, I have access to a vast amount of knowledge and information that I can provide to you. I can assist you with tasks such as answering questions, providing definitions, explaining complex topics, offering suggestions, and even generating ideas.\n\nIf you're looking for information on a specific topic, I can try to provide you with the most up-to-date and accurate information available. If you're facing a problem or challenge, I can try to offer guidance and suggestions to help you overcome it.\n\nI can also engage in conversation, providing a sounding board for your thoughts and ideas. Sometimes, all we need is someone to talk to, and I'm here to listen and respond.\n\nSo, what's on your mind, Hariom Gupta? How can I assist you today?"
     }
 ]

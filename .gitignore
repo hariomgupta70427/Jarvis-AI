@@ -1,2 +1,11 @@
-echo ".env" >> .gitignore
+.env
+Frontend/Files/
+build/
+dist/
+Installer/
+node_modules/
+__pycache__/
 
+Frontend/Files/Responses.data
+Frontend/Files/Database.data
+Frontend/Files/Status.data
